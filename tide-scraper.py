@@ -24,6 +24,7 @@ class TideForecastPage:
     ALL_DAYS = 'tides/latest'
     TIDE_TABLE = '//table[contains(@class, "tide-day-tides")]'
     LOW_TIDES_KEY = 'low-tides'
+    HIGH_TIDES_KEY = 'high-tides'
 
     def scrape_low_tides(self, locations):
         """
@@ -90,27 +91,35 @@ class TideForecastPage:
         result = dict()
         if tide_tables:
             low_tides = {}
+            high_tides = {}
             for table in tide_tables:
-                day_low_tides = self._parse_daylight_low_tide(table)
+                day_low_tides, day_high_tides = self._parse_tide_table(table)
                 low_tides.update(day_low_tides)
+                high_tides.update(day_high_tides)
             
             if low_tides:
                 result[self.LOW_TIDES_KEY] = low_tides
             else:
                 print(f"No low tides found for location: {location}")
+            
+            if high_tides:
+                result[self.HIGH_TIDES_KEY] = high_tides
+            else:
+                print(f"No high tides found for location: {location}")
         else:
             print(f"No tide table found for location: {location}")
 
         return result
 
     @staticmethod
-    def _parse_daylight_low_tide(table, max_days=None):
+    def _parse_tide_table(table, max_days=None):
         """
-        Parse the tide table into a set of time's mapped to tide height ( excluding
-        times after sunset and before sunrise
+        Parse the tide table into a set of time's mapped to tide height
+        Returns both low tides and high tides
         """
 
         low_tides = dict()
+        high_tides = dict()
         
         print(f"Processing table with {len(table.xpath('.//tr'))} rows")
         
@@ -135,9 +144,22 @@ class TideForecastPage:
                     print(f"  Extracted: time='{time_field}', height='{height_field}'")
                     if time_field:
                         low_tides[time_field] = height_field
+            elif 'High Tide' in first_cell:
+                print(f"Found High Tide row with {len(fields)} fields")
+                for i, field in enumerate(fields):
+                    content = field.text_content().strip()
+                    print(f"  Field {i}: '{content}'")
+                
+                if len(fields) >= 3:
+                    time_field = fields[1].text_content().strip()
+                    height_field = fields[2].text_content().strip()
+                    print(f"  Extracted: time='{time_field}', height='{height_field}'")
+                    if time_field:
+                        high_tides[time_field] = height_field
                         
         print(f"Total low tides found: {len(low_tides)}")
-        return low_tides
+        print(f"Total high tides found: {len(high_tides)}")
+        return low_tides, high_tides
 
     @staticmethod
     def _normalize_location_name(location):
